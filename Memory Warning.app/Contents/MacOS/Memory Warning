@@ -1,0 +1,29 @@
+#!/bin/bash
+RESOURCES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources" && pwd)"
+LOG_DIR="$HOME/Library/Logs/memory-warning"
+mkdir -p "$LOG_DIR"
+
+# Locate python3 binary with dependencies
+PYTHON_BIN=""
+CANDIDATES=(
+    "$(which python3 2>/dev/null)"
+    "/opt/homebrew/bin/python3"
+    "/usr/local/bin/python3"
+    "/usr/bin/python3"
+)
+
+# Look for Python that can import rumps
+for p in "${CANDIDATES[@]}"; do
+    if [ -x "$p" ] && "$p" -c "import rumps" 2>/dev/null; then
+        PYTHON_BIN="$p"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_BIN" ]; then
+    PYTHON_BIN="$(which python3 || echo '/usr/bin/python3')"
+fi
+
+cd "$RESOURCES_DIR"
+exec "$PYTHON_BIN" "$RESOURCES_DIR/menubar.py" >> "$LOG_DIR/app_stdout.log" 2>> "$LOG_DIR/app_stderr.log"
+

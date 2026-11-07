@@ -1,0 +1,5 @@
+# Core monitoring (optional fast process scanning; falls back to macOS 'ps')
+psutil>=5.9.0
+
+# macOS Menu Bar (tray) GUI
+rumps>=0.4.0

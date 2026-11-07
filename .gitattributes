@@ -1,0 +1,15 @@
+# Set default behavior to automatically normalize line endings to LF
+* text=auto eol=lf
+
+# Explicitly declare text files that must always have LF line endings
+*.sh text eol=lf
+*.command text eol=lf
+*.py text eol=lf
+*.plist text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+"Memory Warning" text eol=lf
+
