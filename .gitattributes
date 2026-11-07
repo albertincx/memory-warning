@@ -9,6 +9,7 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 
-# Compiled macOS Mach-O executable must be treated as binary
+# Compiled macOS Mach-O executable and images must be treated as binary
 "Memory Warning" binary
 MemoryWarning binary
+*.png binary

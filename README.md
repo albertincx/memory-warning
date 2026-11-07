@@ -6,6 +6,8 @@
 
 A lightweight, 100% native **macOS Menu Bar (tray) app** that monitors running processes and alerts you with native system notifications whenever any process exceeds a configurable RAM threshold (e.g., `500 MB`, `1 GB`, `2 GB`).
 
+![Memory Warning in macOS Menu Bar](screenshot.png)
+
 ---
 
 ## Features
