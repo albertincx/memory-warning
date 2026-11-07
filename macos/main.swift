@@ -187,6 +187,53 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Process Scanning
 
+    func extractDisplayName(from commPath: String) -> String {
+        let components = commPath.split(separator: "/")
+        // Prefer the top-level .app bundle name (e.g. "Antigravity IDE.app" instead of "Electron")
+        for comp in components {
+            if comp.lowercased().hasSuffix(".app") {
+                return String(comp)
+            }
+        }
+        return URL(fileURLWithPath: commPath).lastPathComponent
+    }
+
+    func parsePsLine(_ line: Substring) -> ProcessEntry? {
+        var i = line.startIndex
+
+        // 1. Skip leading whitespace
+        while i < line.endIndex && line[i].isWhitespace {
+            i = line.index(after: i)
+        }
+        let pidStart = i
+        while i < line.endIndex && !line[i].isWhitespace {
+            i = line.index(after: i)
+        }
+        guard pidStart < i, let pid = Int(line[pidStart..<i]) else { return nil }
+
+        // 2. Skip whitespace between pid and rss
+        while i < line.endIndex && line[i].isWhitespace {
+            i = line.index(after: i)
+        }
+        let rssStart = i
+        while i < line.endIndex && !line[i].isWhitespace {
+            i = line.index(after: i)
+        }
+        guard rssStart < i, let rssKB = Double(line[rssStart..<i]) else { return nil }
+
+        // 3. Skip whitespace before command path
+        while i < line.endIndex && line[i].isWhitespace {
+            i = line.index(after: i)
+        }
+        guard i < line.endIndex else { return nil }
+
+        let commPath = String(line[i..<line.endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !commPath.isEmpty else { return nil }
+
+        let name = extractDisplayName(from: commPath)
+        return ProcessEntry(pid: pid, name: name, rssBytes: rssKB * 1024.0)
+    }
+
     func scanProcesses() -> [ProcessEntry] {
         var results: [ProcessEntry] = []
         let task = Process()
@@ -204,14 +251,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             if let output = String(data: data, encoding: .utf8) {
                 for line in output.split(separator: "\n") {
-                    let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    let parts = trimmed.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-                    if parts.count >= 3,
-                       let pid = Int(parts[0]),
-                       let rssKB = Double(parts[1]) {
-                        let commPath = String(parts[2])
-                        let name = URL(fileURLWithPath: commPath).lastPathComponent
-                        results.append(ProcessEntry(pid: pid, name: name, rssBytes: rssKB * 1024.0))
+                    if let entry = parsePsLine(line) {
+                        results.append(entry)
                     }
                 }
             }
@@ -434,7 +475,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let proc = lastTopProcs[idx]
                 let memStr = formatBytes(proc.rssBytes)
                 let icon = (proc.rssBytes >= threshBytes) ? "🔴" : "🔹"
-                let shortName = String(proc.name.prefix(18))
+                let shortName = String(proc.name.prefix(28))
                 item.title = "  \(icon) \(idx + 1). \(shortName): \(memStr) (PID \(proc.pid))"
             } else {
                 item.title = "  #\(idx + 1): —"
