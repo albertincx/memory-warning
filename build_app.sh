@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds a standalone macOS .app bundle for Memory Warning (Menu Bar / Tray app)
+# Builds a standalone native macOS .app bundle for Memory Warning (Menu Bar / Tray app)
+# Uses Swift / AppKit so it runs on ANY Mac without requiring Python or external dependencies.
 
 set -e
 
@@ -10,7 +11,7 @@ MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Building ${BUNDLE_DIR}..."
+echo "Building ${BUNDLE_DIR} (Native Swift Universal Binary)..."
 
 # Clean up any existing bundle
 rm -rf "${BUNDLE_DIR}"
@@ -19,12 +20,21 @@ rm -rf "${BUNDLE_DIR}"
 mkdir -p "${MACOS_DIR}"
 mkdir -p "${RESOURCES_DIR}"
 
-# Copy python files to Resources
-cp "${PROJECT_DIR}/menubar.py" "${RESOURCES_DIR}/"
-cp "${PROJECT_DIR}/memory_monitor.py" "${RESOURCES_DIR}/"
+# Compile Native Swift Binary (Universal arm64 + x86_64 if supported, fallback to host arch)
+if swiftc -O -target arm64-apple-macos11.0 "${PROJECT_DIR}/macos/main.swift" -o "${MACOS_DIR}/MemoryWarning_arm64" 2>/dev/null && \
+   swiftc -O -target x86_64-apple-macos11.0 "${PROJECT_DIR}/macos/main.swift" -o "${MACOS_DIR}/MemoryWarning_x86_64" 2>/dev/null; then
+    lipo -create -output "${MACOS_DIR}/Memory Warning" "${MACOS_DIR}/MemoryWarning_arm64" "${MACOS_DIR}/MemoryWarning_x86_64"
+    rm -f "${MACOS_DIR}/MemoryWarning_arm64" "${MACOS_DIR}/MemoryWarning_x86_64"
+    echo "✅ Compiled Universal Binary (arm64 + x86_64)"
+else
+    swiftc -O "${PROJECT_DIR}/macos/main.swift" -o "${MACOS_DIR}/Memory Warning"
+    echo "✅ Compiled Native Host Binary"
+fi
+
+chmod +x "${MACOS_DIR}/Memory Warning"
 
 # Create Info.plist
-# Note: LSUIElement=true hides the app from the Dock, so it acts purely as a menu bar / tray app.
+# LSUIElement=true hides the app from the Dock so it runs purely in the Menu Bar (tray).
 cat <<EOF > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -37,15 +47,17 @@ cat <<EOF > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundleIdentifier</key>
     <string>com.user.memorywarning</string>
     <key>CFBundleVersion</key>
-    <string>0.2.0</string>
+    <string>0.3.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.0</string>
+    <string>0.3.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleExecutable</key>
     <string>Memory Warning</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSHighResolutionCapable</key>
@@ -54,40 +66,8 @@ cat <<EOF > "${CONTENTS_DIR}/Info.plist"
 </plist>
 EOF
 
-# Create executable launcher inside MacOS/
-cat <<'EOF' > "${MACOS_DIR}/Memory Warning"
-#!/bin/bash
-RESOURCES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources" && pwd)"
-LOG_DIR="$HOME/Library/Logs/memory-warning"
-mkdir -p "$LOG_DIR"
-
-# Locate python3 binary with dependencies
-PYTHON_BIN=""
-CANDIDATES=(
-    "$(which python3 2>/dev/null)"
-    "/opt/homebrew/bin/python3"
-    "/usr/local/bin/python3"
-    "/usr/bin/python3"
-)
-
-# Look for Python that can import rumps
-for p in "${CANDIDATES[@]}"; do
-    if [ -x "$p" ] && "$p" -c "import rumps" 2>/dev/null; then
-        PYTHON_BIN="$p"
-        break
-    fi
-done
-
-if [ -z "$PYTHON_BIN" ]; then
-    PYTHON_BIN="$(which python3 || echo '/usr/bin/python3')"
-fi
-
-cd "$RESOURCES_DIR"
-exec "$PYTHON_BIN" "$RESOURCES_DIR/menubar.py" >> "$LOG_DIR/app_stdout.log" 2>> "$LOG_DIR/app_stderr.log"
-EOF
-
-chmod +x "${MACOS_DIR}/Memory Warning"
+# Ad-hoc code sign the bundle so macOS Gatekeeper allows local execution cleanly
+codesign --force --deep --sign - "${BUNDLE_DIR}" 2>/dev/null || true
 
 echo "✅ Successfully built: ${PROJECT_DIR}/${BUNDLE_DIR}"
 echo "You can now double-click '${APP_NAME}.app' in Finder or drag it to /Applications!"
-

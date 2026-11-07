@@ -10,12 +10,12 @@ A lightweight background monitor and **macOS Menu Bar (tray) app** that alerts y
 
 ## Features
 
-- 🖥️ **macOS `.app` Bundle & Menu Bar (Tray) Mini-UI**:
-  - Ready-to-use **`Memory Warning.app`** — double-click to launch the daemon in the menu bar.
+- 🖥️ **100% Native macOS `.app` Bundle (Zero Dependencies)**:
+  - Compiled natively with Swift (`AppKit` Universal Binary for both Apple Silicon `arm64` & Intel `x86_64`).
+  - **No Python or `pip` required** for end users — download **`Memory Warning.app`** and double-click!
   - Sits quietly in the top status bar as `💾` (or `⚠️ 1.4 GB` when high memory is detected).
-  - Clean shutdown: clicking **Quit** or terminating the process completely stops the background daemon.
-  - Interactive controls: change threshold (`500MB`, `1GB`, `1.5GB`, `2GB` or custom), toggle notifications, toggle sound, change interval (`5s`–`60s`).
-  - Submenu showing live **Top 5 Memory Consumers**.
+  - Live **Top 5 Memory Consumers** right in the 1st-level dropdown menu, updating live even while the menu is open.
+  - Interactive controls: change threshold (`500MB`, `1GB`, `1.5GB`, `2GB`, `3GB`, `4GB` or custom), toggle notifications, toggle sound, change interval (`2s`–`60s`).
   - Remembers your settings in `~/.config/memory-warning/config.json`.
 - 🌐 **Multilingual (EN / RU)**:
   - Automatically adapts to system language (`AppleLanguages` / `LANG`), with manual toggle in menu bar or CLI.

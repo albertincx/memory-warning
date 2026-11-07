@@ -1,15 +1,18 @@
-# Set default behavior to automatically normalize line endings to LF
+# Set default behavior to automatically normalize line endings to LF for text files
 * text=auto eol=lf
 
 # Explicitly declare text files that must always have LF line endings
 *.sh text eol=lf
 *.command text eol=lf
 *.py text eol=lf
+*.swift text eol=lf
 *.plist text eol=lf
 *.md text eol=lf
 *.toml text eol=lf
 *.txt text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
-"Memory Warning" text eol=lf
 
+# Compiled macOS Mach-O executable must be treated as binary
+"Memory Warning" binary
+MemoryWarning binary
