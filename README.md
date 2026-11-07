@@ -1,10 +1,10 @@
-# macOS Memory Warning (`mac-memory-warning`)
+# macOS Memory Warning (`Memory Warning.app`)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://www.apple.com/macos/)
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-macOS%2011%2B-lightgrey.svg)](https://www.apple.com/macos/)
+[![Swift](https://img.shields.io/badge/Swift-AppKit-orange.svg)](https://developer.apple.com/swift/)
 
-A lightweight background monitor and **macOS Menu Bar (tray) app** that alerts you with native system notifications whenever any process exceeds a configurable RAM threshold (e.g., `500 MB`, `1 GB`, `2 GB`).
+A lightweight, 100% native **macOS Menu Bar (tray) app** that monitors running processes and alerts you with native system notifications whenever any process exceeds a configurable RAM threshold (e.g., `500 MB`, `1 GB`, `2 GB`).
 
 ---
 
@@ -12,88 +12,39 @@ A lightweight background monitor and **macOS Menu Bar (tray) app** that alerts y
 
 - 🖥️ **100% Native macOS `.app` Bundle (Zero Dependencies)**:
   - Compiled natively with Swift (`AppKit` Universal Binary for both Apple Silicon `arm64` & Intel `x86_64`).
-  - **No Python or `pip` required** for end users — download **`Memory Warning.app`** and double-click!
-  - Sits quietly in the top status bar as `💾` (or `⚠️ 1.4 GB` when high memory is detected).
-  - Live **Top 5 Memory Consumers** right in the 1st-level dropdown menu, updating live even while the menu is open.
-  - Interactive controls: change threshold (`500MB`, `1GB`, `1.5GB`, `2GB`, `3GB`, `4GB` or custom), toggle notifications, toggle sound, change interval (`2s`–`60s`).
+  - No external runtimes required — just open **`Memory Warning.app`**!
+  - Sits quietly in the top status bar as `💾` (or `⚠️ 1.4 GB` when high memory is detected) without cluttering the Dock (`LSUIElement = true`).
+- 📊 **Live Top 5 Memory Consumers**:
+  - Displayed right in the 1st-level dropdown menu and refreshed automatically while the menu is open.
+- ⚡ **Interactive Controls**:
+  - Change memory threshold (`500MB`, `1GB`, `1.5GB`, `2GB`, `3GB`, `4GB` or custom value).
+  - Change check interval (`2s`–`60s`), toggle notifications, and toggle alert sound.
   - Remembers your settings in `~/.config/memory-warning/config.json`.
 - 🌐 **Multilingual (EN / RU)**:
-  - Automatically adapts to system language (`AppleLanguages` / `LANG`), with manual toggle in menu bar or CLI.
-- 🔔 **Native macOS Notifications**:
-  - Notification Center alerts with audible sound via AppleScript (`osascript`).
-  - Cooldown protection against notification spam (default: once every 5 minutes per process).
-- ⚙️ **Dual Mode**:
-  - **Menu Bar App** (`Memory Warning.app` / `menubar.py`) for visual tray usage.
-  - **Headless CLI Daemon** (`memory_monitor.py` / `LaunchAgent`) for servers or background terminal usage.
+  - Automatically adapts to macOS system language, with manual toggle in the menu bar.
+- 🔔 **Smart Notifications**:
+  - Native Notification Center alerts with cooldown protection against spam (once every 5 minutes per process).
 
 ---
 
-## Quick Launch: Double-Click Executables
+## Quick Start
 
-### 1. Native macOS App Bundle
-Double-click **`Memory Warning.app`** in Finder!
-- Launches the menu bar daemon without showing an empty Dock icon (`LSUIElement = true`).
-- To close the daemon, click the `💾` icon in the menu bar and select **Quit** (или **Выход**).
-
-### 2. Double-Click Command Script
-Double-click **`run.command`** in Finder to launch the monitor directly in Terminal. Closing the Terminal window stops the daemon immediately.
+1. Double-click **`Memory Warning.app`** in Finder (or drag it into `/Applications`).
+2. Look for the **`💾`** icon in the top-right macOS menu bar.
+3. Click **`💾`** to view top memory consumers, adjust thresholds, or quit (**Quit** / **Выход**).
 
 ---
 
-## Installation & Setup
+## Building from Source
 
-```bash
-git clone https://github.com/yourusername/mac-memory-warning.git
-cd mac-memory-warning
+Requires macOS with Xcode Command Line Tools (`swiftc`):
 
-# Install requirements (rumps for status bar GUI & psutil for fast scanning)
-pip install -r requirements.txt
-```
-
-To build or refresh the `.app` bundle at any time:
 ```bash
 chmod +x build_app.sh
 ./build_app.sh
 ```
 
----
-
-## Headless CLI Usage
-
-If you prefer running without the menu bar icon:
-
-```bash
-# One-time memory check
-python3 memory_monitor.py --threshold 1GB --once
-
-# Foreground daemon
-python3 memory_monitor.py --threshold 500MB --interval 10
-```
-
----
-
-## Background Autostart on Boot (macOS LaunchAgent)
-
-To run silently on login:
-
-```bash
-chmod +x install_agent.sh uninstall_agent.sh
-./install_agent.sh 1GB 15 auto
-```
-
-Uninstall:
-```bash
-./uninstall_agent.sh
-```
-
----
-
-## Running Tests
-
-```bash
-pip install -e ".[dev,gui]"
-pytest
-```
+This compiles `macos/main.swift` into a Universal Binary (`arm64` + `x86_64`) and generates **`Memory Warning.app`**.
 
 ---
 
@@ -102,18 +53,11 @@ pytest
 Releases are automatically built and published via GitHub Actions when a version tag is pushed:
 
 ```bash
-# 1. Create and push a new git tag (e.g. v0.2.0)
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-GitHub Actions will:
-1. Run test suite across Python versions.
-2. Build `Memory Warning.app` for macOS.
-3. Package it into `Memory-Warning-v0.2.0-macos.zip`.
-4. Create a new GitHub Release with release notes and attach the ready-to-run `.zip` asset.
-
-You can also trigger a release build manually from the **Actions** tab on GitHub via **Run workflow** (`workflow_dispatch`).
+GitHub Actions compiles `Memory Warning.app`, packages `Memory-Warning-v0.3.0-macos.zip`, and publishes a GitHub Release.
 
 ---
 

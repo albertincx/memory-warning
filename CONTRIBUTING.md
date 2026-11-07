@@ -1,4 +1,4 @@
-# Contributing to mac-memory-warning
+# Contributing to Memory Warning
 
 Thank you for considering contributing! Here are guidelines to get started.
 
@@ -10,20 +10,15 @@ Thank you for considering contributing! Here are guidelines to get started.
    cd mac-memory-warning
    ```
 
-2. Create a virtual environment and install development dependencies:
+2. Edit the native Swift source in `macos/main.swift` and rebuild the application bundle:
    ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -e ".[dev]"
+   ./build_app.sh
    ```
 
-3. Run the test suite:
-   ```bash
-   pytest
-   ```
+3. Launch `Memory Warning.app` to verify your changes.
 
 ## Pull Request Guidelines
 
-- Ensure tests pass on macOS.
+- Ensure `./build_app.sh` compiles cleanly on macOS.
 - Keep changes focused and self-contained.
-- Document any new CLI arguments or configuration options in `README.md`.
+- Document any new features or configuration options in `README.md`.
