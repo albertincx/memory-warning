@@ -69,6 +69,7 @@ def detect_system_language() -> str:
     Checks environment variables (LC_ALL, LANG) and macOS AppleLanguages preference.
     Defaults to 'en'.
     """
+    # 1. Check environment variables
     for env_var in ("LC_ALL", "LC_MESSAGES", "LANG"):
         val = os.environ.get(env_var)
         if val:
@@ -76,6 +77,7 @@ def detect_system_language() -> str:
             if prefix in TRANSLATIONS:
                 return prefix
 
+    # 2. Check native macOS preferences via 'defaults read -g AppleLanguages'
     try:
         res = subprocess.run(
             ["defaults", "read", "-g", "AppleLanguages"],
@@ -92,6 +94,7 @@ def detect_system_language() -> str:
     except Exception:
         pass
 
+    # Default fallback is English
     return "en"
 
 
@@ -240,11 +243,13 @@ def monitor_loop(
             current_time = time.time()
             all_procs = scan_processes()
 
+            # Clean up processes that exited from cooldown cache
             live_pids = {p[0] for p in all_procs}
             dead_pids = [pid for pid in notified_at if pid not in live_pids]
             for pid in dead_pids:
                 del notified_at[pid]
 
+            # Filter candidates above threshold
             violators = []
             for pid, name, rss in all_procs:
                 if name.lower() in ignore_list or any(
@@ -254,8 +259,10 @@ def monitor_loop(
                 if rss >= threshold_bytes:
                     violators.append((pid, name, rss))
 
+            # Sort violators by memory descending
             violators.sort(key=lambda x: x[2], reverse=True)
 
+            # Check and alert for violators
             for pid, name, rss in violators:
                 last_time = notified_at.get(pid, 0)
                 if current_time - last_time >= cooldown_seconds:
@@ -369,4 +376,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

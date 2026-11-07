@@ -26,4 +26,3 @@ fi
 
 cd "$RESOURCES_DIR"
 exec "$PYTHON_BIN" "$RESOURCES_DIR/menubar.py" >> "$LOG_DIR/app_stdout.log" 2>> "$LOG_DIR/app_stderr.log"
-

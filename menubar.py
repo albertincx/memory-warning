@@ -90,7 +90,11 @@ class MemoryWarningApp(rumps.App):
         self.interval_options = [5, 10, 15, 30, 60]
 
         # Build initial menu
+        self.top_items = []
         self.rebuild_menu()
+
+        # Run an immediate scan to populate top consumers right away
+        self.check_memory(None)
 
         # Start timer for background checking
         self.timer = rumps.Timer(self.check_memory, self.cfg["interval"])
@@ -112,15 +116,26 @@ class MemoryWarningApp(rumps.App):
 
         self.menu.clear()
 
-        # Top processes section (will be populated dynamically)
+        # --- Top Memory Consumers directly in 1st Level Menu ---
+        top_header_title = "📊 Топ процессов по памяти:" if is_ru else "📊 Top Memory Consumers:"
+        self.menu.add(rumps.MenuItem(top_header_title))
+
+        self.top_items = []
+        for _ in range(5):
+            item = rumps.MenuItem(f"  ... ({'сканирование' if is_ru else 'scanning'})")
+            self.top_items.append(item)
+            self.menu.add(item)
+
+        self.menu.add(rumps.separator)
+
+        # Status & Threshold
         status_title = (
             f"⚡ Порог: {current_thresh}" if is_ru else f"⚡ Threshold: {current_thresh}"
         )
         self.menu.add(rumps.MenuItem(status_title))
-        self.menu.add(rumps.separator)
 
         # --- Submenu: Memory Threshold ---
-        thresh_menu_title = "Порог памяти" if is_ru else "Memory Threshold"
+        thresh_menu_title = "Изменить порог" if is_ru else "Change Threshold"
         thresh_menu = rumps.MenuItem(thresh_menu_title)
         for opt in self.threshold_options:
             item = rumps.MenuItem(opt, callback=self.on_select_threshold)
@@ -157,12 +172,6 @@ class MemoryWarningApp(rumps.App):
 
         self.menu.add(rumps.separator)
 
-        # --- Top Processes Submenu ---
-        top_procs_title = "Топ процессов по памяти" if is_ru else "Top Memory Consumers"
-        self.top_menu = rumps.MenuItem(top_procs_title)
-        self.top_menu.add(rumps.MenuItem("Сканирование..." if is_ru else "Scanning..."))
-        self.menu.add(self.top_menu)
-
         # --- Submenu: Language ---
         lang_menu_title = "Язык / Language"
         lang_menu = rumps.MenuItem(lang_menu_title)
@@ -185,6 +194,10 @@ class MemoryWarningApp(rumps.App):
         self.menu.add(lang_menu)
 
         self.menu.add(rumps.separator)
+
+        # Open Activity Monitor button
+        am_title = "Открыть Мониторинг системы" if is_ru else "Open Activity Monitor"
+        self.menu.add(rumps.MenuItem(am_title, callback=self.open_activity_monitor))
 
         # Quit
         quit_title = "Выход" if is_ru else "Quit"
@@ -301,15 +314,34 @@ class MemoryWarningApp(rumps.App):
                 )
 
     def update_top_processes_menu(self, top_list):
-        """Updates the top processes submenu items."""
-        self.top_menu.clear()
-        if not top_list:
-            self.top_menu.add(rumps.MenuItem("Нет данных" if self.active_lang == "ru" else "No data"))
+        """Updates the top processes items directly in the main 1st-level menu."""
+        if not hasattr(self, "top_items"):
             return
 
-        for pid, name, rss in top_list:
-            label = f"{name[:18]} (PID {pid}): {format_bytes(rss)}"
-            self.top_menu.add(rumps.MenuItem(label))
+        try:
+            thresh_bytes = parse_size(self.cfg["threshold"])
+        except Exception:
+            thresh_bytes = 1024**3
+
+        for idx, item in enumerate(self.top_items):
+            if idx < len(top_list):
+                pid, name, rss = top_list[idx]
+                formatted_mem = format_bytes(rss)
+                icon = "🔴" if rss >= thresh_bytes else "🔹"
+                item.title = f"  {icon} {name[:18]}: {formatted_mem} (PID {pid})"
+                item._pid = pid
+                item.set_callback(self.open_activity_monitor)
+            else:
+                item.title = "  —"
+                item._pid = None
+                item.set_callback(None)
+
+    def open_activity_monitor(self, _):
+        """Opens macOS Activity Monitor."""
+        try:
+            subprocess.run(["open", "-a", "Activity Monitor"], check=False)
+        except Exception:
+            pass
 
 
 def main():
