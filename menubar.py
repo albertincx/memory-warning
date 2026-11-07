@@ -7,10 +7,11 @@ configuration of thresholds, notification alerts, sounds, and intervals.
 
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 
 try:
     import rumps
@@ -77,6 +78,8 @@ class MemoryWarningApp(rumps.App):
         super().__init__("💾", quit_button=None)
         self.cfg = load_config()
         self.notified_at: Dict[int, float] = {}
+        self.last_top_procs: List[Tuple[int, str, int]] = []
+        self.last_updated_str: str = ""
 
         # Resolve active language
         self.active_lang = (
@@ -85,20 +88,43 @@ class MemoryWarningApp(rumps.App):
             else self.cfg["lang"]
         )
 
-        # Threshold presets in bytes
+        # Threshold presets and interval options
         self.threshold_options = ["500MB", "1GB", "1.5GB", "2GB", "3GB", "4GB"]
-        self.interval_options = [5, 10, 15, 30, 60]
+        self.interval_options = [2, 5, 10, 15, 30, 60]
 
         # Build initial menu
+        self.top_header_item = None
         self.top_items = []
         self.rebuild_menu()
 
         # Run an immediate scan to populate top consumers right away
         self.check_memory(None)
 
-        # Start timer for background checking
-        self.timer = rumps.Timer(self.check_memory, self.cfg["interval"])
+        # Start timer for background checking (including when menu is open)
+        self.timer = None
+        self._start_timer(self.cfg["interval"])
+
+    def _start_timer(self, interval_sec: float):
+        """Starts or restarts the recurring timer and registers it in NSRunLoopCommonModes
+        so it fires even while the status bar dropdown menu is open."""
+        if self.timer is not None:
+            try:
+                self.timer.stop()
+            except Exception:
+                pass
+
+        self.timer = rumps.Timer(self.check_memory, interval_sec)
         self.timer.start()
+
+        try:
+            from Foundation import NSRunLoop, NSRunLoopCommonModes
+
+            if hasattr(self.timer, "_nstimer") and self.timer._nstimer is not None:
+                NSRunLoop.currentRunLoop().addTimer_forMode_(
+                    self.timer._nstimer, NSRunLoopCommonModes
+                )
+        except Exception as e:
+            print(f"[WARN] Could not register timer in NSRunLoopCommonModes: {e}", file=sys.stderr)
 
     def t(self, key: str, **kwargs) -> str:
         """Helper to get translated string."""
@@ -117,20 +143,38 @@ class MemoryWarningApp(rumps.App):
         self.menu.clear()
 
         # --- Top Memory Consumers directly in 1st Level Menu ---
-        top_header_title = "📊 Топ процессов по памяти:" if is_ru else "📊 Top Memory Consumers:"
-        self.menu.add(rumps.MenuItem(top_header_title))
+        top_header_title = (
+            "📊 Топ процессов по памяти:"
+            if is_ru
+            else "📊 Top Memory Consumers:"
+        )
+        self.top_header_item = rumps.MenuItem(top_header_title, callback=self.on_manual_refresh)
+        self.menu.add(self.top_header_item)
 
+        # IMPORTANT: Each MenuItem must have a unique initial title when added to rumps.Menu,
+        # because rumps uses the initial title as the dictionary key in ListDict.
         self.top_items = []
-        for _ in range(5):
-            item = rumps.MenuItem(f"  ... ({'сканирование' if is_ru else 'scanning'})")
+        for i in range(5):
+            placeholder = (
+                f"  #{i + 1}: сканирование..."
+                if is_ru
+                else f"  #{i + 1}: scanning..."
+            )
+            item = rumps.MenuItem(placeholder, callback=self.open_activity_monitor)
             self.top_items.append(item)
             self.menu.add(item)
+
+        # Populate immediately if we already have scan results
+        if self.last_top_procs:
+            self.update_top_processes_menu(self.last_top_procs)
 
         self.menu.add(rumps.separator)
 
         # Status & Threshold
         status_title = (
-            f"⚡ Порог: {current_thresh}" if is_ru else f"⚡ Threshold: {current_thresh}"
+            f"⚡ Порог: {current_thresh} (интервал: {current_interval}с)"
+            if is_ru
+            else f"⚡ Threshold: {current_thresh} (every {current_interval}s)"
         )
         self.menu.add(rumps.MenuItem(status_title))
 
@@ -203,10 +247,14 @@ class MemoryWarningApp(rumps.App):
         quit_title = "Выход" if is_ru else "Quit"
         self.menu.add(rumps.MenuItem(quit_title, callback=rumps.quit_application))
 
+    def on_manual_refresh(self, _):
+        self.check_memory(None)
+
     def on_select_threshold(self, sender):
         self.cfg["threshold"] = sender.title
         save_config(self.cfg)
         self.rebuild_menu()
+        self.check_memory(None)
 
     def on_custom_threshold(self, _):
         is_ru = self.active_lang == "ru"
@@ -225,6 +273,7 @@ class MemoryWarningApp(rumps.App):
                 self.cfg["threshold"] = text
                 save_config(self.cfg)
                 self.rebuild_menu()
+                self.check_memory(None)
             except Exception:
                 err_msg = (
                     "Неверный формат. Примеры: 500MB, 1GB, 1.5G"
@@ -237,10 +286,9 @@ class MemoryWarningApp(rumps.App):
         sec = getattr(sender, "_seconds", 15)
         self.cfg["interval"] = sec
         save_config(self.cfg)
-        self.timer.stop()
-        self.timer.interval = sec
-        self.timer.start()
         self.rebuild_menu()
+        self.check_memory(None)
+        self._start_timer(sec)
 
     def on_toggle_notifications(self, sender):
         self.cfg["notifications_enabled"] = not self.cfg["notifications_enabled"]
@@ -258,6 +306,7 @@ class MemoryWarningApp(rumps.App):
         self.active_lang = detect_system_language() if val == "auto" else val
         save_config(self.cfg)
         self.rebuild_menu()
+        self.check_memory(None)
 
     def check_memory(self, _):
         """Background routine executed on each timer tick."""
@@ -268,6 +317,7 @@ class MemoryWarningApp(rumps.App):
 
         all_procs = scan_processes()
         current_time = time.time()
+        self.last_updated_str = time.strftime("%H:%M:%S")
 
         # Clean up dead PIDs
         live_pids = {p[0] for p in all_procs}
@@ -277,9 +327,10 @@ class MemoryWarningApp(rumps.App):
 
         # Sort all by RSS descending
         all_procs.sort(key=lambda x: x[2], reverse=True)
+        self.last_top_procs = all_procs[:5]
 
-        # Update Top Processes submenu
-        self.update_top_processes_menu(all_procs[:5])
+        # Update Top Processes in 1st-level menu
+        self.update_top_processes_menu(self.last_top_procs)
 
         # Filter violators
         violators = [p for p in all_procs if p[2] >= threshold_bytes]
@@ -313,10 +364,18 @@ class MemoryWarningApp(rumps.App):
                     sound=self.cfg["sound"],
                 )
 
-    def update_top_processes_menu(self, top_list):
+    def update_top_processes_menu(self, top_list: List[Tuple[int, str, int]]):
         """Updates the top processes items directly in the main 1st-level menu."""
-        if not hasattr(self, "top_items"):
+        if not hasattr(self, "top_items") or not self.top_items:
             return
+
+        is_ru = self.active_lang == "ru"
+        if self.top_header_item is not None and self.last_updated_str:
+            self.top_header_item.title = (
+                f"📊 Топ по памяти (обн. {self.last_updated_str}):"
+                if is_ru
+                else f"📊 Top Memory (upd. {self.last_updated_str}):"
+            )
 
         try:
             thresh_bytes = parse_size(self.cfg["threshold"])
@@ -328,13 +387,11 @@ class MemoryWarningApp(rumps.App):
                 pid, name, rss = top_list[idx]
                 formatted_mem = format_bytes(rss)
                 icon = "🔴" if rss >= thresh_bytes else "🔹"
-                item.title = f"  {icon} {name[:18]}: {formatted_mem} (PID {pid})"
+                item.title = f"  {icon} {idx + 1}. {name[:18]}: {formatted_mem} (PID {pid})"
                 item._pid = pid
-                item.set_callback(self.open_activity_monitor)
             else:
-                item.title = "  —"
+                item.title = f"  #{idx + 1}: —"
                 item._pid = None
-                item.set_callback(None)
 
     def open_activity_monitor(self, _):
         """Opens macOS Activity Monitor."""
