@@ -91,9 +91,29 @@ Uninstall:
 ## Running Tests
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,gui]"
 pytest
 ```
+
+---
+
+## Releasing New Versions
+
+Releases are automatically built and published via GitHub Actions when a version tag is pushed:
+
+```bash
+# 1. Create and push a new git tag (e.g. v0.2.0)
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+GitHub Actions will:
+1. Run test suite across Python versions.
+2. Build `Memory Warning.app` for macOS.
+3. Package it into `Memory-Warning-v0.2.0-macos.zip`.
+4. Create a new GitHub Release with release notes and attach the ready-to-run `.zip` asset.
+
+You can also trigger a release build manually from the **Actions** tab on GitHub via **Run workflow** (`workflow_dispatch`).
 
 ---
 
