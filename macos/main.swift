@@ -452,7 +452,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         amItem.target = self
         statusMenu.addItem(amItem)
 
-        // 9. Quit
+        // 9. Create Shortcut to Desktop
+        let shortcutTitle = isRu ? "Создать ярлык на рабочем столе" : "Create Shortcut to Desktop"
+        let shortcutItem = NSMenuItem(title: shortcutTitle, action: #selector(onCreateDesktopShortcut), keyEquivalent: "")
+        shortcutItem.target = self
+        statusMenu.addItem(shortcutItem)
+
+        // 10. Quit
         let quitTitle = isRu ? "Выход" : "Quit"
         let quitItem = NSMenuItem(title: quitTitle, action: #selector(onQuit), keyEquivalent: "q")
         quitItem.target = self
@@ -563,6 +569,50 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func openActivityMonitor() {
         let url = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
         NSWorkspace.shared.open(url)
+    }
+
+    @objc func onCreateDesktopShortcut() {
+        let sourceURL = Bundle.main.bundleURL.pathExtension == "app"
+            ? Bundle.main.bundleURL
+            : URL(fileURLWithPath: CommandLine.arguments[0])
+
+        guard let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let shortcutName = sourceURL.lastPathComponent
+        let destURL = desktopURL.appendingPathComponent(shortcutName)
+
+        do {
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+
+            // Create native macOS Finder Alias via bookmark file, fallback to symlink
+            do {
+                let bookmarkData = try sourceURL.bookmarkData(
+                    options: .suitableForBookmarkFile,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                try URL.writeBookmarkData(bookmarkData, to: destURL)
+            } catch {
+                try FileManager.default.createSymbolicLink(at: destURL, withDestinationURL: sourceURL)
+            }
+
+            let title = isRu ? "Ярлык создан" : "Shortcut Created"
+            let msg = isRu
+                ? "Ярлык '\(shortcutName)' успешно добавлен на рабочий стол."
+                : "Shortcut '\(shortcutName)' was created on your Desktop."
+            sendNotification(title: title, subtitle: "Desktop", message: msg, sound: false)
+        } catch {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            let errAlert = NSAlert()
+            errAlert.alertStyle = .warning
+            errAlert.messageText = isRu ? "Ошибка создания ярлыка" : "Failed to Create Shortcut"
+            errAlert.informativeText = error.localizedDescription
+            errAlert.runModal()
+        }
     }
 
     @objc func onQuit() {
