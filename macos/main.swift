@@ -8,6 +8,7 @@ struct AppConfig: Codable {
     var sound: Bool = true
     var notifications_enabled: Bool = true
     var lang: String = "auto"
+    var keep_in_dock: Bool = false
 }
 
 struct ProcessEntry {
@@ -39,11 +40,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApplication.shared.setActivationPolicy(.accessory)
-        setupAppIcon()
-
         loadConfig()
         resolveLanguage()
+        applyDockPolicy()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -57,6 +56,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
         checkMemory()
         startTimer(interval: config.interval)
+    }
+
+    func applyDockPolicy() {
+        let policy: NSApplication.ActivationPolicy = config.keep_in_dock ? .regular : .accessory
+        NSApplication.shared.setActivationPolicy(policy)
+        setupAppIcon()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        statusItem.button?.performClick(nil)
+        return true
     }
 
     func setupAppIcon() {
@@ -97,6 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if let s = json["sound"] as? Bool { config.sound = s }
                 if let n = json["notifications_enabled"] as? Bool { config.notifications_enabled = n }
                 if let l = json["lang"] as? String { config.lang = l }
+                if let d = json["keep_in_dock"] as? Bool { config.keep_in_dock = d }
             }
         } catch {
             // Keep defaults on error
@@ -114,7 +125,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 "cooldown": Int(config.cooldown),
                 "sound": config.sound,
                 "notifications_enabled": config.notifications_enabled,
-                "lang": config.lang
+                "lang": config.lang,
+                "keep_in_dock": config.keep_in_dock
             ]
             let data = try JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted])
             try data.write(to: url)
@@ -414,7 +426,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         threshMenuItem.submenu = threshSubmenu
         statusMenu.addItem(threshMenuItem)
 
-        // 4. Check Interval Submenu
+        // 4. Settings Submenu
+        let settingsMenuTitle = isRu ? "Настройки" : "Settings"
+        let settingsMenuItem = NSMenuItem(title: settingsMenuTitle, action: nil, keyEquivalent: "")
+        let settingsSubmenu = NSMenu(title: settingsMenuTitle)
+
+        // 4.1 Check Interval Submenu
         let intervalMenuTitle = isRu ? "Интервал проверки" : "Check Interval"
         let intervalMenuItem = NSMenuItem(title: intervalMenuTitle, action: nil, keyEquivalent: "")
         let intervalSubmenu = NSMenu(title: intervalMenuTitle)
@@ -430,25 +447,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         intervalMenuItem.submenu = intervalSubmenu
-        statusMenu.addItem(intervalMenuItem)
+        settingsSubmenu.addItem(intervalMenuItem)
 
-        // 5. Notifications Toggle
+        // 4.2 Notifications Toggle
         let notifTitle = isRu ? "Оповещения" : "Notifications"
         let notifItem = NSMenuItem(title: notifTitle, action: #selector(onToggleNotifications(_:)), keyEquivalent: "")
         notifItem.target = self
         notifItem.state = config.notifications_enabled ? .on : .off
-        statusMenu.addItem(notifItem)
+        settingsSubmenu.addItem(notifItem)
 
-        // 6. Sound Toggle
+        // 4.3 Sound Toggle
         let soundTitle = isRu ? "Звуковой сигнал" : "Alert Sound"
         let soundItem = NSMenuItem(title: soundTitle, action: #selector(onToggleSound(_:)), keyEquivalent: "")
         soundItem.target = self
         soundItem.state = config.sound ? .on : .off
-        statusMenu.addItem(soundItem)
+        settingsSubmenu.addItem(soundItem)
 
-        statusMenu.addItem(NSMenuItem.separator())
+        settingsSubmenu.addItem(NSMenuItem.separator())
 
-        // 7. Language Submenu
+        // 4.4 Keep in Dock Toggle
+        let dockTitle = isRu ? "Показывать в Dock" : "Keep in Dock"
+        let dockItem = NSMenuItem(title: dockTitle, action: #selector(onToggleKeepInDock(_:)), keyEquivalent: "")
+        dockItem.target = self
+        dockItem.state = config.keep_in_dock ? .on : .off
+        settingsSubmenu.addItem(dockItem)
+
+        // 4.5 Language Submenu
         let langMenuItem = NSMenuItem(title: "Язык / Language", action: nil, keyEquivalent: "")
         let langSubmenu = NSMenu(title: "Язык / Language")
 
@@ -465,23 +489,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             langSubmenu.addItem(item)
         }
         langMenuItem.submenu = langSubmenu
-        statusMenu.addItem(langMenuItem)
+        settingsSubmenu.addItem(langMenuItem)
+
+        settingsSubmenu.addItem(NSMenuItem.separator())
+
+        // 4.6 Create Shortcut to Desktop
+        let shortcutTitle = isRu ? "Создать ярлык на рабочем столе" : "Create Shortcut to Desktop"
+        let shortcutItem = NSMenuItem(title: shortcutTitle, action: #selector(onCreateDesktopShortcut), keyEquivalent: "")
+        shortcutItem.target = self
+        settingsSubmenu.addItem(shortcutItem)
+
+        settingsMenuItem.submenu = settingsSubmenu
+        statusMenu.addItem(settingsMenuItem)
 
         statusMenu.addItem(NSMenuItem.separator())
 
-        // 8. Open Activity Monitor
+        // 5. Open Activity Monitor
         let amTitle = isRu ? "Открыть Мониторинг системы" : "Open Activity Monitor"
         let amItem = NSMenuItem(title: amTitle, action: #selector(openActivityMonitor), keyEquivalent: "")
         amItem.target = self
         statusMenu.addItem(amItem)
 
-        // 9. Create Shortcut to Desktop
-        let shortcutTitle = isRu ? "Создать ярлык на рабочем столе" : "Create Shortcut to Desktop"
-        let shortcutItem = NSMenuItem(title: shortcutTitle, action: #selector(onCreateDesktopShortcut), keyEquivalent: "")
-        shortcutItem.target = self
-        statusMenu.addItem(shortcutItem)
-
-        // 10. Quit
+        // 6. Quit
         let quitTitle = isRu ? "Выход" : "Quit"
         let quitItem = NSMenuItem(title: quitTitle, action: #selector(onQuit), keyEquivalent: "q")
         quitItem.target = self
@@ -577,6 +606,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         config.sound.toggle()
         saveConfig()
         sender.state = config.sound ? .on : .off
+    }
+
+    @objc func onToggleKeepInDock(_ sender: NSMenuItem) {
+        config.keep_in_dock.toggle()
+        saveConfig()
+        sender.state = config.keep_in_dock ? .on : .off
+        applyDockPolicy()
     }
 
     @objc func onSelectLang(_ sender: NSMenuItem) {
