@@ -33,6 +33,11 @@ fi
 
 chmod +x "${MACOS_DIR}/Memory Warning"
 
+# Copy application icon if present
+if [ -f "${PROJECT_DIR}/macos/AppIcon.icns" ]; then
+    cp "${PROJECT_DIR}/macos/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
+fi
+
 # Create Info.plist
 # LSUIElement=true hides the app from the Dock so it runs purely in the Menu Bar (tray).
 cat <<EOF > "${CONTENTS_DIR}/Info.plist"
@@ -56,6 +61,8 @@ cat <<EOF > "${CONTENTS_DIR}/Info.plist"
     <string>????</string>
     <key>CFBundleExecutable</key>
     <string>Memory Warning</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
     <key>LSUIElement</key>
@@ -68,6 +75,7 @@ EOF
 
 # Ad-hoc code sign the bundle so macOS Gatekeeper allows local execution cleanly
 codesign --force --deep --sign - "${BUNDLE_DIR}" 2>/dev/null || true
+touch "${BUNDLE_DIR}"
 
 echo "✅ Successfully built: ${PROJECT_DIR}/${BUNDLE_DIR}"
 echo "You can now double-click '${APP_NAME}.app' in Finder or drag it to /Applications!"

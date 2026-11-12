@@ -18,6 +18,8 @@
     <string>????</string>
     <key>CFBundleExecutable</key>
     <string>Memory Warning</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
     <key>LSUIElement</key>

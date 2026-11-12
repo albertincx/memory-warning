@@ -40,6 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
+        setupAppIcon()
 
         loadConfig()
         resolveLanguage()
@@ -56,6 +57,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
         checkMemory()
         startTimer(interval: config.interval)
+    }
+
+    func setupAppIcon() {
+        let execUrl = URL(fileURLWithPath: CommandLine.arguments[0])
+        let execDir = execUrl.deletingLastPathComponent()
+
+        let candidatePaths: [String?] = [
+            Bundle.main.path(forResource: "AppIcon", ofType: "icns"),
+            Bundle.main.path(forResource: "AppIcon", ofType: "png"),
+            execDir.appendingPathComponent("../Resources/AppIcon.icns").path,
+            execDir.appendingPathComponent("AppIcon.icns").path,
+            execDir.appendingPathComponent("AppIcon.png").path,
+            "macos/AppIcon.icns",
+            "macos/AppIcon.png"
+        ]
+
+        for path in candidatePaths {
+            if let p = path, FileManager.default.fileExists(atPath: p), let image = NSImage(contentsOfFile: p) {
+                NSApplication.shared.applicationIconImage = image
+                return
+            }
+        }
     }
 
     // MARK: - Config Persistence
